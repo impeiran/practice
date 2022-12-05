@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useReducer, useRef, useState } from "react"
 
 export type StoreInitializer<T = any> = (options: {
   get: () => T,
@@ -76,22 +76,24 @@ function createReadStoreHook <
       selector ? selector(getState()) : getState()
     )
 
-    const [, setUpdateKey] = useState(true)
-    const forceUpdate = () => setUpdateKey(v => !v)
+    const [, forceUpdate] = useReducer(version => version + 1, 0)
 
     const selectorRef = useRef<typeof selector>()
     const equalizerRef = useRef<typeof equalizer>()
+
     selectorRef.current = selector
     equalizerRef.current = equalizer
 
     const dispatch = useCallback((newState: StateType) => {
-      if (!selectorRef.current) {
+      const selectorFn = selectorRef.current
+
+      if (!selectorFn) {
         currentRef.current = newState
         forceUpdate()
         return
       }
 
-      const selectedState = selectorRef.current(newState)
+      const selectedState = selectorFn(newState)
 
       if (!Object.is(selectedState, currentRef.current)) {
         // custom equalizer
