@@ -1,0 +1,21 @@
+{
+  "name": "@practice/react-state",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "peerDependencies": {
+    "react": "^17.0.0"
+  },
+  "author": "impeiran",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/react": "^17.0.0",
+    "react": "^17.0.0",
+    "typescript": "^4.6.4"
+  }
+}

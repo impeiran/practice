@@ -69,6 +69,10 @@ function createReadStoreHook <
   function useStore(): StateType;
   function useStore<Selected = any>(selector: (s: StateType) => Selected): Selected;
   function useStore<Selected = any>(
+    selector: (s: StateType) => Selected,
+    equalizer?: (current: Selected, prev: Selected) => boolean | undefined
+  ): Selected;
+  function useStore<Selected = any>(
     selector?: (s: StateType) => Selected,
     equalizer?: (current: Selected, prev: Selected) => boolean | undefined
   ) {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import reactLogo from './assets/react.svg'
-import { createStore } from './utils/state'
+import { createStore } from '@practice/react-state'
 import './App.css'
 
 type StoreState = {
@@ -27,9 +27,10 @@ function Counter() {
 
   console.log('render counter')
 
-  return (<button onClick={() => setCounter(counter + 1)}>
-        count is {counter}
-      </button>)
+  return (
+    <button style={{ marginRight: 12 }} onClick={() => setCounter(counter + 1)}>
+      count is {counter}
+    </button>)
 }
 
 function PriceButton() {
@@ -37,7 +38,7 @@ function PriceButton() {
   const setPrice = commonStore.useStore(s => s.setPrice)
 
   return (
-    <button onClick={() => setPrice()}>
+    <button style={{ marginRight: 12 }} onClick={() => setPrice()}>
       price is {price}
     </button>
   )
@@ -48,7 +49,7 @@ function QuantityButton() {
   const setQuantity = commonStore.useStore(s => s.setQuantity)
 
   return (
-    <button onClick={() => setQuantity()}>
+    <button style={{ marginRight: 12 }} onClick={() => setQuantity()}>
       quantity is {quantity}
     </button>
   )
@@ -59,7 +60,9 @@ function Total() {
   console.log('render total')
 
   return (
-    <span>{total as number}</span>
+    <div>
+      <span>total: {total}</span>
+    </div>
   )
 }
 
