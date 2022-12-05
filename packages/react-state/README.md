@@ -1,5 +1,7 @@
 ## React-State
-react state solution, it's small and efficient :) (implements with 100+ lines code)
+> implements with 100+ lines code
+
+react state solution, it's small and efficient 😃
 ### Usage
 init the store
 ```typescript
