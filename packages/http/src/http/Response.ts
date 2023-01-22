@@ -69,7 +69,5 @@ export class Response extends EventEmitter {
     console.log(responseMessage)
 
     this.socket.write(responseMessage)
-    this.socket.pipe(this.socket)
-    this.socket.end(callback)
   }
 }
