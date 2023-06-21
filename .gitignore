@@ -20,6 +20,7 @@ node_modules/
 .nyc_output
 *.tsbuildinfo
 .eslintcache
+.parcel-cache
 
 dist/
 coverage/
