@@ -1,22 +1,44 @@
+import { isArray, isPlainObject } from "./utils";
+
+let shouldTrigger = true
+
+const arrayInstrumentations: Record<string, any> = {}
+
+;['push', 'pop', 'shift', 'unshift', 'splice'].forEach((method: any) => {
+  const originMethod = Array.prototype[method]
+  arrayInstrumentations[method] = function (...args: any[]) {
+    shouldTrigger = false
+    const res = originMethod.apply(this, args)
+    shouldTrigger = true
+    return res
+  }
+})
+
+export type ObservableType = Record<string | symbol | number, any>
 export interface ReactionFnContext {
   __deps__?: Set<Set<ReactionFn>>
 }
-
 export interface ReactionFn<T = any> extends ReactionFnContext {
-  (currentValue?: T): any;
+  (): any;
 }
-
 export type KeyReactionMap = Map<string | Symbol, Set<ReactionFn>>
 
+export const ITERATE_KEY = Symbol()
+
+export enum OperationSetterEnum {
+  ITERATE,
+  ADD,
+  SET,
+}
+
 const reactionStack: ReactionFn[] = []
-
 const observableReactionMap: WeakMap<any, KeyReactionMap> = new WeakMap()
+const proxyMap: WeakMap<any, any> = new WeakMap()
 
-function trackTargetAndReaction(target: unknown, key: string | Symbol) {
-  if (!reactionStack.length) {
+function trackTarget(target: unknown, key: string | Symbol) {
+  if (!reactionStack.length || !shouldTrigger) {
     return
   }
-
   const currentReaction = reactionStack[reactionStack.length - 1]
 
   let targetKeyReactionMap: KeyReactionMap | undefined = observableReactionMap.get(target)
@@ -40,8 +62,18 @@ function trackTargetAndReaction(target: unknown, key: string | Symbol) {
   }
 }
 
-function notifyReactionByTargetAndKey<T>(target: unknown, key: string | Symbol, value: T) {
-  const reactionSet = observableReactionMap.get(target)?.get(key)
+function notifyReactionByTargetAndKey<T>(
+  target: unknown,
+  key: string | Symbol,
+  type: OperationSetterEnum
+) {
+  debugger
+  const exactKey = type === OperationSetterEnum.ADD
+    ? 'length'
+    : key
+
+  const reactionSet = observableReactionMap.get(target)?.get(exactKey)
+
   // use new set to avoid infinite loop
   const reactionToRun = new Set<ReactionFn>([])
 
@@ -53,7 +85,7 @@ function notifyReactionByTargetAndKey<T>(target: unknown, key: string | Symbol, 
     }
   })
 
-  reactionToRun.forEach(fn => fn(value))
+  reactionToRun.forEach(fn => fn())
 }
 
 function removeTracker(fn: ReactionFn) {
@@ -65,18 +97,62 @@ function removeTracker(fn: ReactionFn) {
   fn.__deps__ = new Set()
 }
 
-export function observable<T extends Record<string, any>>(value: T) {
+export function observable<T extends ObservableType>(value: T): T {
+  if (!isPlainObject(value) && !isArray(value)) {
+    return value
+  }
+
+  const existProxy = proxyMap.get(value)
+  if (existProxy) {
+    return existProxy
+  }
+
+  // TODO: need define delete/has/ownKeys handlers
   const proxy = new Proxy(value, {
     get(target, key, receiver) {
-      trackTargetAndReaction(target, key)
-      return Reflect.get(target, key, receiver)
+      const currentValue = Array.isArray(target) && arrayInstrumentations.hasOwnProperty(key)
+        ? Reflect.get(arrayInstrumentations, key, receiver)
+        : Reflect.get(target, key, receiver)
+
+      trackTarget(target, key)
+
+      if (currentValue) {
+        return observable(currentValue)
+      }
+
+      return currentValue
     },
-    set(target, key, newValue, receiver) {
-      const result = Reflect.set(target, key, newValue, receiver)
-      notifyReactionByTargetAndKey(target, key, newValue)
-      return result
-    }
+    set(target, key, value, receiver) {
+      console.log(observableReactionMap)
+      debugger
+      const type = Array.isArray(target)
+        ? Number(key) < target.length
+          ? OperationSetterEnum.SET
+          : OperationSetterEnum.ADD
+        : !Object.prototype.hasOwnProperty.call(target, key)
+          ? OperationSetterEnum.ADD
+          : OperationSetterEnum.SET
+
+      const newValue = observable(value)
+      const oldValue = target[key]
+
+      Reflect.set(target, key, newValue, receiver)
+
+      if (value !== oldValue) {
+        notifyReactionByTargetAndKey(target, key, type)
+      }
+
+      return true
+    },
+    ownKeys(target) {
+      const key = Array.isArray(target) ? 'length' : ITERATE_KEY
+      notifyReactionByTargetAndKey(target, key, OperationSetterEnum.ITERATE)
+      return Reflect.ownKeys(target)
+    },
   })
+
+  proxyMap.set(value, proxy)
+
   return proxy
 }
 
@@ -89,16 +165,26 @@ export function effect(fn: () => void) {
       reactionStack.pop()
     } 
   }
-
   removeTracker(effectFn)
-
   effectFn()
-
   return () => removeTracker(effectFn)
 }
 
 export type WatchOptions = {
   immediate?: boolean
+}
+
+function traverseDeep(target: any, recordSet = new Set<any>()) {
+  if (typeof target !== 'object' || target === null || recordSet.has(target)) {
+    return
+  }
+  recordSet.add(target)
+  if (Array.isArray(target) && target.length) {
+    // do nothing to track length
+  }
+  for(const key in target) {
+    traverseDeep(target[key], recordSet)
+  }
 }
 
 export function watch<T>(
@@ -108,21 +194,19 @@ export function watch<T>(
 ) {
   let previous: T | undefined = undefined 
 
-  const makeExpressionTrack = (triggerCallback: (currentValue: T) => void) => {
+  const makeExpressionTrack = (triggerCallback?: (currentValue: T) => void) => {
     reactionStack.push(reactionFn)
     const currentValue = expression()
+    traverseDeep(currentValue)
     reactionStack.pop()
-    triggerCallback(currentValue)
+    triggerCallback?.(currentValue)
     previous = currentValue
-    return currentValue
   }
 
   const reactionFn = () => {
     removeTracker(reactionFn)
     makeExpressionTrack((currentValue) => {
-      if (currentValue !== previous) {
-        callback(currentValue, previous)
-      }
+      callback(currentValue, previous)
     })
   }
 
@@ -131,7 +215,7 @@ export function watch<T>(
       callback(currentValue, previous)
     })
   } else {
-    reactionFn()
+    makeExpressionTrack()
   }
 
   return () => removeTracker(reactionFn)
