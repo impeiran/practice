@@ -9,6 +9,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "@practice/react-router": "workspace:*"
+  },
   "devDependencies": {
     "process": "^0.11.10",
     "react": "^17.0.0"
